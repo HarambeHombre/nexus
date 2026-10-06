@@ -35,14 +35,15 @@ async def get_stats(ctx, *, gamertag: str):
             
         data = response.json()
         
-        # OpenXBL wraps the array within the profileUsers object root
-        profile_users = data.get("profileUsers", [])
+        # OPENXBL V2 FIX: Extract 'content' root block before finding 'profileUsers'
+        content_block = data.get("content", {})
+        profile_users = content_block.get("profileUsers", [])
         
         if not profile_users or len(profile_users) == 0:
             await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
             return
             
-        # FIX: Explicitly index item 0 to unpack the inner dictionary array!
+        # OPENXBL V2 FIX: Safely unpack list index 0 using standard array brackets
         user_data = profile_users[0]
         xuid = user_data.get("id")
         
@@ -50,14 +51,16 @@ async def get_stats(ctx, *, gamertag: str):
         title_url = f"https://xbl.io{xuid}"
         title_res = requests.get(title_url, headers=headers).json()
         
-        titles = title_res.get("titles", [])
+        # OpenXBL also wraps player history stats inside the 'content' root object
+        title_content = title_res.get("content", title_res)
+        titles = title_content.get("titles", [])
         mcc_data = next((t for t in titles if str(t.get("titleId")) == "1144039928"), None)
 
         if not mcc_data:
             await ctx.send("❌ This player hasn't played Halo: MCC on this Xbox account.")
             return
 
-        # Step 3: Extract visual profile elements out of the settings array
+        # Step 3: Extract visual profile elements out of the nested settings array
         settings = user_data.get("settings", [])
         avatar_url = next((s.get("value") for s in settings if s.get("id") == "AppDisplayPicRaw"), None)
 
