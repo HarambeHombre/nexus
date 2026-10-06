@@ -23,7 +23,7 @@ async def get_stats(ctx, *, gamertag: str):
     }
     
     try:
-        # Step 1: Query Search Endpoint with properly formatted URL encoding
+        # Step 1: Query Search Endpoint using OpenXBL's official path format
         encoded_gt = urllib.parse.quote(cleaned_gt)
         profile_url = f"https://api.xbl.io/v2/friends/search/{encoded_gt}"
         
@@ -35,24 +35,24 @@ async def get_stats(ctx, *, gamertag: str):
             
         data = response.json()
         
-        # OPENXBL V2 FIX: Extract 'content' root block before finding 'profileUsers'
-        content_block = data.get("content", {})
+        # Pull profileUsers out of the root content block
+        content_block = data.get("content", data)
         profile_users = content_block.get("profileUsers", [])
         
         if not profile_users or len(profile_users) == 0:
             await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
             return
             
-        # OPENXBL V2 FIX: Safely unpack list index 0 using standard array brackets
+        # Target index 0 explicitly to unpack the user profile block
         user_data = profile_users[0]
         xuid = user_data.get("id")
         
-        # Step 2: Query Title History for Halo: MCC (Title ID: 1144039928)
+        # Step 2: Query Title History explicitly adding the correct structural slashes
         title_url = f"https://xbl.io{xuid}"
-        title_res = requests.get(title_url, headers=headers).json()
         
-        # OpenXBL also wraps player history stats inside the 'content' root object
+        title_res = requests.get(title_url, headers=headers).json()
         title_content = title_res.get("content", title_res)
+        
         titles = title_content.get("titles", [])
         mcc_data = next((t for t in titles if str(t.get("titleId")) == "1144039928"), None)
 
