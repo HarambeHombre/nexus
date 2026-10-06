@@ -28,17 +28,12 @@ async def get_stats(ctx, *, gamertag: str):
     }
     
     try:
-        # FIX: Break up the text components so Railway's parser cannot see 'xbl.io' as a block
         domain_part = "api" + "." + "xbl" + "." + "io"
         encoded_gt = urllib.parse.quote(cleaned_gt)
-        
         profile_url = f"https://{domain_part}/v2/friends/search/{encoded_gt}"
         
         print(f"🚀 STEP 1: Hitting profile search endpoint...")
-        print(f"Target URL Matrix: {profile_url}")
-        
         response = requests.get(profile_url, headers=headers)
-        print(f"HTTP Response Status Code: {response.status_code}")
         
         if response.status_code == 401:
             await ctx.send("❌ OpenXBL API Key is unauthorized. Check your Railway configuration variables.")
@@ -54,14 +49,14 @@ async def get_stats(ctx, *, gamertag: str):
             await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
             return
             
-        user_data = profile_users
+        # FIX: Target index 0 directly to unpack the user account block from the list!
+        user_data = profile_users[0]
         xuid = user_data.get("id")
         print(f"🎯 Found target XUID: {xuid}")
         
-        # FIX: Break up the title string path as well
+        # Query Title History
         title_url = f"https://{domain_part}/v2/player/titlehistory/{xuid}"
         print(f"🚀 STEP 2: Querying Title History...")
-        print(f"Target URL Matrix: {title_url}")
         
         title_res = requests.get(title_url, headers=headers).json()
         
@@ -82,6 +77,7 @@ async def get_stats(ctx, *, gamertag: str):
         achieve_info = mcc_data.get("achievement", {})
         gamerscore = achieve_info.get("currentGamerscore", 0)
         progress = achieve_info.get("progressPercentage", 0)
+        print(f"Stats Parsed -> GamerScore: {gamerscore} | Total Progress: {progress}%")
 
         # Step 4: Output the complete Spartan Profile card
         embed = discord.Embed(
