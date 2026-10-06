@@ -13,25 +13,31 @@ async def on_ready():
 
 @bot.command(name="halostats")
 async def get_stats(ctx, *, gamertag: str):
-    await ctx.send(f"🛰️ Connecting to Xbox Live for **{gamertag}**...")
+    # Prompt user immediately so they know the command registered
+    await ctx.send(f"🛰️ Connecting to Xbox Live for **{gamertag.strip()}**...")
 
-    headers = {"X-Authorization": os.getenv("OPENXBL_KEY", "")}
+    headers = {"X-Authorization": os.getenv("OPENXBL_KEY", "").strip()}
     
     try:
-        # Step 1: Use the precise URL encoding for OpenXBL Gamertag Search
-        # Clean up any accidental spaces from user input
+        # Step 1: Query official player search endpoint to retrieve the XUID
         cleaned_gt = gamertag.strip()
-        profile_url = f"https://xbl.io{cleaned_gt}"
+        profile_url = f"https://api.xbl.io/v2/friends/search?gt={cleaned_gt}"
         
         response = requests.get(profile_url, headers=headers)
-        profile_res = response.json()
         
-        profile_users = profile_res.get("profileUsers", [])
-        if not profile_users:
-            await ctx.send("❌ Gamertag not found. Double check the spelling.")
+        if response.status_code == 401:
+            await ctx.send("❌ OpenXBL API Key is unauthorized. Check your Railway configuration variables.")
             return
             
-        user_data = profile_users[0] # Grab the first matched user profile array block
+        profile_res = response.json()
+        profile_users = profile_res.get("profileUsers", [])
+        
+        if not profile_users:
+            await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
+            return
+            
+        # Extract the target account data block safely
+        user_data = profile_users[0]
         xuid = user_data.get("id")
         
         # Step 2: Query Title History for Halo: MCC (Title ID: 1144039928)
@@ -45,7 +51,7 @@ async def get_stats(ctx, *, gamertag: str):
             await ctx.send("❌ This player hasn't played Halo: MCC on this Xbox account.")
             return
 
-        # Step 3: Extract profile image and achievement stats safely
+        # Step 3: Extract profile visual assets and tracking metrics safely
         settings = user_data.get("settings", [])
         avatar_url = next((s.get("value") for s in settings if s.get("id") == "AppDisplayPicRaw"), None)
 
@@ -53,7 +59,7 @@ async def get_stats(ctx, *, gamertag: str):
         gamerscore = achieve_info.get("currentGamerscore", 0)
         progress = achieve_info.get("progressPercentage", 0)
 
-        # Step 4: Construct and send the card
+        # Step 4: Construct and send the scannable player profile embed card
         embed = discord.Embed(
             title=f"Spartan Record: {cleaned_gt}",
             color=discord.Color.green()
@@ -63,13 +69,13 @@ async def get_stats(ctx, *, gamertag: str):
             
         embed.add_field(name="GamerScore Earned", value=f"{gamerscore:,}", inline=True)
         embed.add_field(name="Total Progress", value=f"{progress}% Completed", inline=True)
-        embed.set_footer(text="Data retrieved via OpenXBL Relay")
+        embed.set_footer(text="Data retrieved via OpenXBL Gateway")
         
         await ctx.send(embed=embed)
 
     except Exception as e:
-        print(f"Error occurred: {e}")
-        await ctx.send("❌ Failed to process statistics data. Check server logs.")
+        print(f"Error occurred during API execution: {e}")
+        await ctx.send("❌ Failed to process statistic query. Please check server logs.")
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 bot.run(TOKEN)
