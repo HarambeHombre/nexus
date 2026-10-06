@@ -23,9 +23,9 @@ async def get_stats(ctx, *, gamertag: str):
     }
     
     try:
-        # Step 1: Query OpenXBL search endpoint according to v2 documentation
+        # Step 1: Fix URL format according to OpenXBL v2 specifications
         encoded_gt = urllib.parse.quote(cleaned_gt)
-        profile_url = f"https://api.xbl.io/v2/friends/search?gt={encoded_gt}"
+        profile_url = f"https://api.xbl.io/v2/friends/search/{encoded_gt}"
         
         response = requests.get(profile_url, headers=headers)
         
@@ -33,16 +33,16 @@ async def get_stats(ctx, *, gamertag: str):
             await ctx.send("❌ OpenXBL API Key is unauthorized. Check your Railway configuration variables.")
             return
             
-        profile_res = response.json()
+        data = response.json()
         
-        # OpenXBL v2 wraps data inside a root list called profileUsers
-        profile_users = profile_res.get("profileUsers", [])
+        # OpenXBL wraps the user objects array deep inside the profileUsers block
+        profile_users = data.get("profileUsers", [])
         
-        if not profile_users:
+        if not profile_users or len(profile_users) == 0:
             await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
             return
             
-        # Target the explicit user block at index 0
+        # Target index 0 explicitly out of the array list
         user_data = profile_users[0]
         xuid = user_data.get("id")
         
@@ -57,31 +57,25 @@ async def get_stats(ctx, *, gamertag: str):
             await ctx.send("❌ This player hasn't played Halo: MCC on this Xbox account.")
             return
 
-        # Step 3: Parse profile settings data dictionary safely
+        # Step 3: Extract visual profile elements out of the settings array
         settings = user_data.get("settings", [])
-        
-        # Helper to extract key values from OpenXBL's nested ID settings structure
-        def get_setting_value(setting_id):
-            return next((s.get("value") for s in settings if s.get("id") == setting_id), None)
-
-        avatar_url = get_setting_value("AppDisplayPicRaw")
-        display_gt = get_setting_value("Gamertag") or cleaned_gt
+        avatar_url = next((s.get("value") for s in settings if s.get("id") == "AppDisplayPicRaw"), None)
 
         achieve_info = mcc_data.get("achievement", {})
         gamerscore = achieve_info.get("currentGamerscore", 0)
         progress = achieve_info.get("progressPercentage", 0)
 
-        # Step 4: Construct and deliver the final Discord Embed card
+        # Step 4: Output the complete Spartan Profile card
         embed = discord.Embed(
-            title=f"Spartan Record: {display_gt}",
+            title=f"Spartan Record: {cleaned_gt}",
             color=discord.Color.green()
         )
         if avatar_url:
             embed.set_thumbnail(url=avatar_url)
             
         embed.add_field(name="GamerScore Earned", value=f"{gamerscore:,}", inline=True)
-        embed.add_field(name="Total Completion", value=f"{progress}%", inline=True)
-        embed.set_footer(text="Data retrieved via OpenXBL Gateway")
+        embed.add_field(name="Total Progress", value=f"{progress}% Completed", inline=True)
+        embed.set_footer(text="Data retrieved via OpenXBL Relay")
         
         await ctx.send(embed=embed)
 
