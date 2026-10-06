@@ -13,50 +13,60 @@ async def on_ready():
 
 @bot.command(name="halostats")
 async def get_stats(ctx, *, gamertag: str):
+    # Send this first to verify the bot received the command!
     await ctx.send(f"🛰️ Connecting to Xbox Live for **{gamertag}**...")
 
-    # OpenXBL endpoints to find XUID (Xbox User ID) from Gamertag
-    headers = {"X-Authorization": os.getenv("OPENXBL_KEY")}
+    headers = {"X-Authorization": os.getenv("OPENXBL_KEY", "")}
     
     try:
         # Step 1: Convert Gamertag to Xbox User ID (XUID)
         profile_url = f"https://xbl.io{gamertag}"
         profile_res = requests.get(profile_url, headers=headers).json()
         
-        # Grab the profile data block
-        profile_data = profile_res.get("profileUsers", [{}])[0]
-        xuid = profile_data.get("id")
-        
-        if not xuid:
+        profile_users = profile_res.get("profileUsers", [])
+        if not profile_users:
             await ctx.send("❌ Gamertag not found. Double check the spelling.")
             return
-
+            
+        user_data = profile_users[0]
+        xuid = user_data.get("id")
+        
         # Step 2: Query Title History for Halo: MCC (Title ID: 1144039928)
         title_url = f"https://xbl.io{xuid}"
         title_res = requests.get(title_url, headers=headers).json()
         
-        # Look through titles for Halo MCC achievements/time
         titles = title_res.get("titles", [])
-        mcc_data = next((t for t in titles if t.get("titleId") == "1144039928"), None)
+        mcc_data = next((t for t in titles if str(t.get("titleId")) == "1144039928"), None)
 
         if not mcc_data:
             await ctx.send("❌ This player hasn't played Halo: MCC on this Xbox account.")
             return
 
-        # Step 3: Parse and present the data block
+        # Step 3: Safely extract profile image and achievement stats
+        settings = user_data.get("settings", [])
+        avatar_url = next((s.get("value") for s in settings if s.get("id") == "AppDisplayPicRaw"), None)
+
+        achieve_info = mcc_data.get("achievement", {})
+        gamerscore = achieve_info.get("currentGamerscore", 0)
+        progress = achieve_info.get("progressPercentage", 0)
+
+        # Step 4: Construct and send the card
         embed = discord.Embed(
             title=f"Spartan Record: {gamertag}",
             color=discord.Color.green()
         )
-        embed.set_thumbnail(url=profile_data.get("settings", [{}])[2].get("value")) # Gamercard image
-        embed.add_field(name="GamerScore Earned", value=mcc_data.get("achievement", {}).get("currentGamerscore"), inline=True)
-        embed.add_field(name="Progress", value=f"{mcc_data.get('achievement', {}).get('progressPercentage')}% Completed", inline=True)
+        if avatar_url:
+            embed.set_thumbnail(url=avatar_url)
+            
+        embed.add_field(name="GamerScore Earned", value=f"{gamerscore:,}", inline=True)
+        embed.add_field(name="Total Progress", value=f"{progress}% Completed", inline=True)
+        embed.set_footer(text="Data retrieved via OpenXBL Relay")
         
         await ctx.send(embed=embed)
 
-except Exception as e:
+    except Exception as e:
         print(f"Error occurred: {e}")
-        await ctx.send("❌ Failed to contact UNSC relay. Please try again later.")
+        await ctx.send("❌ Failed to process statistics data. Check server logs.")
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 bot.run(TOKEN)
