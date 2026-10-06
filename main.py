@@ -13,22 +13,25 @@ async def on_ready():
 
 @bot.command(name="halostats")
 async def get_stats(ctx, *, gamertag: str):
-    # Send this first to verify the bot received the command!
     await ctx.send(f"🛰️ Connecting to Xbox Live for **{gamertag}**...")
 
     headers = {"X-Authorization": os.getenv("OPENXBL_KEY", "")}
     
     try:
-        # Step 1: Convert Gamertag to Xbox User ID (XUID)
-        profile_url = f"https://xbl.io{gamertag}"
-        profile_res = requests.get(profile_url, headers=headers).json()
+        # Step 1: Use the precise URL encoding for OpenXBL Gamertag Search
+        # Clean up any accidental spaces from user input
+        cleaned_gt = gamertag.strip()
+        profile_url = f"https://xbl.io{cleaned_gt}"
+        
+        response = requests.get(profile_url, headers=headers)
+        profile_res = response.json()
         
         profile_users = profile_res.get("profileUsers", [])
         if not profile_users:
             await ctx.send("❌ Gamertag not found. Double check the spelling.")
             return
             
-        user_data = profile_users[0]
+        user_data = profile_users[0] # Grab the first matched user profile array block
         xuid = user_data.get("id")
         
         # Step 2: Query Title History for Halo: MCC (Title ID: 1144039928)
@@ -42,7 +45,7 @@ async def get_stats(ctx, *, gamertag: str):
             await ctx.send("❌ This player hasn't played Halo: MCC on this Xbox account.")
             return
 
-        # Step 3: Safely extract profile image and achievement stats
+        # Step 3: Extract profile image and achievement stats safely
         settings = user_data.get("settings", [])
         avatar_url = next((s.get("value") for s in settings if s.get("id") == "AppDisplayPicRaw"), None)
 
@@ -52,7 +55,7 @@ async def get_stats(ctx, *, gamertag: str):
 
         # Step 4: Construct and send the card
         embed = discord.Embed(
-            title=f"Spartan Record: {gamertag}",
+            title=f"Spartan Record: {cleaned_gt}",
             color=discord.Color.green()
         )
         if avatar_url:
