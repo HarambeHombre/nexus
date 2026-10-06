@@ -25,7 +25,7 @@ async def get_stats(ctx, *, gamertag: str):
     try:
         # Step 1: Query Search Endpoint using OpenXBL's official path format
         encoded_gt = urllib.parse.quote(cleaned_gt)
-        profile_url = f"https://api.xbl.io/v2/friends/search/{encoded_gt}"
+        profile_url = f"https://api.xbl.io/v2/search/{encoded_gt}"
         
         response = requests.get(profile_url, headers=headers)
         
