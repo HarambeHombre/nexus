@@ -25,7 +25,7 @@ async def get_stats(ctx, *, gamertag: str):
     try:
         # Step 1: URL Encode the gamertag to handle spaces cleanly
         encoded_gt = urllib.parse.quote(cleaned_gt)
-        profile_url = f"https://api.xbl.io/v2/friends/search?gt={encoded_gt}"
+        profile_url = f"https://xbl.io{encoded_gt}"
         
         response = requests.get(profile_url, headers=headers)
         
@@ -34,16 +34,14 @@ async def get_stats(ctx, *, gamertag: str):
             return
             
         profile_res = response.json()
-        
-        # OpenXBL wraps the array within the response body
         profile_users = profile_res.get("profileUsers", [])
         
-        if not profile_users:
+        # FIX: Ensure the array isn't empty, then grab index 0 explicitly
+        if not profile_users or len(profile_users) == 0:
             await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
             return
             
-        # Target the first matched user account in the profile block
-        user_data = profile_users[0]
+        user_data = profile_users[0]  # This targets the actual account block inside the array
         xuid = user_data.get("id")
         
         # Step 2: Query Title History for Halo: MCC (Title ID: 1144039928)
