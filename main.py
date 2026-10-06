@@ -23,7 +23,7 @@ async def get_stats(ctx, *, gamertag: str):
     }
     
     try:
-        # Step 1: Fix URL format according to OpenXBL v2 specifications
+        # Step 1: Query Search Endpoint with properly formatted URL encoding
         encoded_gt = urllib.parse.quote(cleaned_gt)
         profile_url = f"https://api.xbl.io/v2/friends/search/{encoded_gt}"
         
@@ -35,14 +35,14 @@ async def get_stats(ctx, *, gamertag: str):
             
         data = response.json()
         
-        # OpenXBL wraps the user objects array deep inside the profileUsers block
+        # OpenXBL wraps the array within the profileUsers object root
         profile_users = data.get("profileUsers", [])
         
         if not profile_users or len(profile_users) == 0:
             await ctx.send("❌ Gamertag not found. Double-check the spelling and try again.")
             return
             
-        # Target index 0 explicitly out of the array list
+        # FIX: Explicitly index item 0 to unpack the inner dictionary array!
         user_data = profile_users[0]
         xuid = user_data.get("id")
         
